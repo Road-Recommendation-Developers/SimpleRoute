@@ -46,8 +46,7 @@ public class SimpleRoute {
                 e.printStackTrace();
             }
             System.out.println("--------------");
-            //暂时发现问题，时间排序上
-            //todoList.sort(Comparator.comparing(Route::getStartLine));
+            //todoList.sort,以时间顺序进行排序
             todoList.sort((x, y) -> {
                 Calendar calendar_x= null;
                 Calendar calendar_y= null;
