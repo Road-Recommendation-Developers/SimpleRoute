@@ -13,20 +13,11 @@ public class SimpleRoute {
     }
 
     public List<Route> GetTheTodoListWithInTimeWindow(List<Route> routeDatas, List<Task> taskDatas) throws ParseException {
-        List<Route> todoList=new ArrayList<Route>();
+        List<Route> todoList=new ArrayList<>();
         //FormateTheInfos(routeDatas);
         Calendar start = Calendar.getInstance();
-        start.set(Calendar.MONTH,3);
-        start.set(Calendar.DATE,12);
-        start.set(Calendar.HOUR_OF_DAY,0);
-        start.set(Calendar.MINUTE,0);
-        start.set(Calendar.SECOND,0);
         Calendar end = Calendar.getInstance();
-        end.set(Calendar.MONTH,3);
-        end.set(Calendar.DATE,15);
-        end.set(Calendar.HOUR_OF_DAY,0);
-        end.set(Calendar.MINUTE,0);
-        end.set(Calendar.SECOND,0);
+        WindowInitilize(start,end);
         //System.out.println(start.getTime().toString()+end.getTime().toString());
         //输出4.12-4.16这个时间段的课程情况与待办事务安排情况，窗口为3
         while (start.get(Calendar.DATE)<=14){
@@ -35,8 +26,7 @@ public class SimpleRoute {
             System.out.println("The course between Apr "+start.get(Calendar.DATE)+" and Apr "+end.get(Calendar.DATE)+" is:");
             //插入课程数据
             for(Route r : routeDatas ) {
-                Calendar tmp=Calendar.getInstance();
-                tmp=r.ChangeStringToCalendar(r.getStartLine());
+                Calendar tmp=r.ChangeStringToCalendar(r.getStartLine());
                 //设置窗口大小为3
                 if (tmp.after(start)&& tmp.before(end)) {
                     //在窗口内，则存储进去
@@ -48,9 +38,8 @@ public class SimpleRoute {
             //插入待办事务
             List<Task> tmpTask = new ArrayList<>(taskDatas);
             InsertTaskIntoTodoList(freeTimeTable,tmpTask,todoList);
+            ChangeTheWindowByStep(start,end,1);
 
-            start.add(Calendar.DATE,1);
-            end.add(Calendar.DATE,1);
             try {
                 Thread.sleep(500);
             } catch (InterruptedException e) {
@@ -59,25 +48,22 @@ public class SimpleRoute {
             System.out.println("--------------");
             //暂时发现问题，时间排序上
             //todoList.sort(Comparator.comparing(Route::getStartLine));
-            todoList.sort(new Comparator<Route>() {
-                @Override
-                public int compare(Route x, Route y) {
-                    Calendar calendar_x= null;
-                    Calendar calendar_y= null;
-                    try {
-                        calendar_x = x.ChangeStringToCalendar(x.getStartLine());
-                        calendar_y = y.ChangeStringToCalendar(y.getStartLine());
-                    } catch (ParseException e) {
-                        e.printStackTrace();
-                    }
-                    assert calendar_x != null;
-                    return calendar_x.compareTo(calendar_y);
+            todoList.sort((x, y) -> {
+                Calendar calendar_x= null;
+                Calendar calendar_y= null;
+                try {
+                    calendar_x = x.ChangeStringToCalendar(x.getStartLine());
+                    calendar_y = y.ChangeStringToCalendar(y.getStartLine());
+                } catch (ParseException e) {
+                    e.printStackTrace();
                 }
+                assert calendar_x != null;
+                return calendar_x.compareTo(calendar_y);
             }
             );
-            //希望是日期而非时间，相应的办法？
             //绘制出相应的路线，有个直观认识
             DrawTheRoute(todoList);
+            //质量工程，效果评估
             EstimateTheEffect(todoList);
             //writeFile(todoList);
             System.out.println();
@@ -89,16 +75,11 @@ public class SimpleRoute {
         Calendar time = Calendar.getInstance();
         int day,hour;
         time.set(Calendar.DATE,12);
-        List<Route> formatList=new ArrayList<Route>();
-        Map<String, Integer> cnt = new LinkedHashMap<String, Integer>() ;
+        List<Route> formatList= new ArrayList<>();
+        Map<String, Integer> cnt = new LinkedHashMap<>() ;
 
         for ( Route r : routeDatas ) {
-            Integer last = cnt.get(r.getStartLine().substring(1,2));
-            if (last != null) {
-                cnt.put(r.getStartLine().substring(1,2), last+1);
-            } else {
-                cnt.put(r.getStartLine().substring(1,2), 1);
-            }
+            cnt.merge(r.getStartLine().substring(1, 2), 1, Integer::sum);
         }
         for ( String key : cnt.keySet() ) {
             day=ChangeKeyToDay(key);
@@ -135,38 +116,29 @@ public class SimpleRoute {
     }
 
     public int ChangeWordToIntTime(String Word){
-        if(Word.equals("1-2节"))
-            return 8;
-        else if(Word.equals("3-4节"))
-            return 10;
-        else if(Word.equals("5-6节"))
-            return 14;
-        else if(Word.equals("7-8节"))
-            return 16;
-        else if(Word.equals("9-10节"))
-            return 19;
-        else return 0;
+        return switch (Word) {
+            case "1-2节" -> 8;
+            case "3-4节" -> 10;
+            case "5-6节" -> 14;
+            case "7-8节" -> 16;
+            case "9-10节" -> 19;
+            default -> 0;
+        };
     }
     public int ChangeKeyToDay(String key){
-        if(key.equals("一"))
-            return 12;
-        else if(key.equals("二"))
-            return 13;
-        else if(key.equals("三"))
-            return 14;
-        else if(key.equals("四"))
-            return 15;
-        else if(key.equals("五"))
-            return 16;
-        else return 0;
+        return switch (key) {
+            case "一" -> 12;
+            case "二" -> 13;
+            case "三" -> 14;
+            case "四" -> 15;
+            case "五" -> 16;
+            default -> 0;
+        };
         //意外情况的处理，还需加以考虑的
     }
 
     public boolean InTimeWindow(Calendar endTime,Calendar windowTime){
-        if(windowTime.compareTo(endTime)>0)
-            return true;
-        else
-            return false;
+        return windowTime.compareTo(endTime) > 0;
     }
 
     public void DrawTheRoute(List<Route> routeDatas){
@@ -174,25 +146,25 @@ public class SimpleRoute {
         String startLat,startLog,endLat,endLog;
         String type;
         int executeTime;
-        for(int i=0;i<routeDatas.size();i++){
-            startPoint=routeDatas.get(i).getStartPoint();
-            startLat=routeDatas.get(i).getStartLat();
-            startLog=routeDatas.get(i).getStartLog();
-            endPoint=routeDatas.get(i).getEndPoint();
-            endLat=routeDatas.get(i).getEndLat();
-            endLog=routeDatas.get(i).getEndLog();
-            startLine=routeDatas.get(i).getStartLine();
-            executeTime=routeDatas.get(i).getExecuteTime();
-            deadLine=routeDatas.get(i).getDeadLine();
-            type=routeDatas.get(i).getType();
-            System.out.println("The route is from "+startPoint+" to "+endPoint+",the start point location is:"+startLat+","+startLog+",the end point location is:"+endLat+","+endLog+",the start line is "+startLine+",the dead line is "+deadLine+",the execute time is "+executeTime+",the type is "+type);
+        for (Route routeData : routeDatas) {
+            startPoint = routeData.getStartPoint();
+            startLat = routeData.getStartLat();
+            startLog = routeData.getStartLog();
+            endPoint = routeData.getEndPoint();
+            endLat = routeData.getEndLat();
+            endLog = routeData.getEndLog();
+            startLine = routeData.getStartLine();
+            executeTime = routeData.getExecuteTime();
+            deadLine = routeData.getDeadLine();
+            type = routeData.getType();
+            System.out.println("The route is from " + startPoint + " to " + endPoint + ",the start point location is:" + startLat + "," + startLog + ",the end point location is:" + endLat + "," + endLog + ",the start line is " + startLine + ",the dead line is " + deadLine + ",the execute time is " + executeTime + ",the type is " + type);
 
         }
     }
     public static void writeFile(List<Route> formatList) {
         try {
             File file = new File("src\\Data\\output.txt"); // 相对路径，如果没有则要建立一个新的output.txt文件
-            FileOutputStream fos = null;
+            FileOutputStream fos;
             if(!file.exists()){
                 file.createNewFile();//如果文件不存在，就创建该文件
                 fos = new FileOutputStream(file);//首次写入获取
@@ -213,15 +185,10 @@ public class SimpleRoute {
     public List<Route> Conclude(List<Route> routeDatas){
         //处理目标：对涉及的地点进行归类，输出排序后的List
         // System.out.println("---------------------");
-        List<Route> orderedList=new ArrayList<Route>();
-        Map<String, Integer> cnt = new TreeMap<String, Integer>();
+        List<Route> orderedList= new ArrayList<>();
+        Map<String, Integer> cnt = new TreeMap<>();
         for ( Route r : routeDatas ) {
-            Integer last = cnt.get(r.getStartPoint());
-            if (last != null) {
-                cnt.put(r.getStartPoint(), last+1);
-            } else {
-                cnt.put(r.getStartPoint(), 1);
-            }
+            cnt.merge(r.getStartPoint(), 1, Integer::sum);
         }
 
         for ( String key : cnt.keySet() ) {
@@ -241,9 +208,9 @@ public class SimpleRoute {
         for(int i=0;i<todoList.size()-1;i++){
             Route tmp=new Route();
             tmp.type="free";
-            Calendar DeadLineday=Calendar.getInstance();
+            Calendar DeadLineday;
             DeadLineday=tmp.ChangeStringToCalendar(todoList.get(i).getDeadLine());
-            Calendar StartLineday=Calendar.getInstance();
+            Calendar StartLineday;
             StartLineday=tmp.ChangeStringToCalendar(todoList.get(i+1).getStartLine());
             if(DeadLineday.get(Calendar.DATE)<StartLineday.get(Calendar.DATE)){
                 //即为不同的两天，应考虑约束条件；
@@ -286,9 +253,9 @@ public class SimpleRoute {
         //2，进行约束条件的分析,见 LimitCondition函数
         //3，更新空闲时间序列和待办事务时间序列,见InsertTaskToFreeTimetable函数
         for(int i=0;i<freeTimeTable.size();){
-            Calendar StartLine=Calendar.getInstance();
+            Calendar StartLine;
             StartLine=freeTimeTable.get(i).ChangeStringToCalendar(freeTimeTable.get(i).startLine);
-            Calendar DeadLine=Calendar.getInstance();
+            Calendar DeadLine;
             DeadLine=freeTimeTable.get(i).ChangeStringToCalendar(freeTimeTable.get(i).deadLine);
             long difference=DeadLine.getTimeInMillis()-StartLine.getTimeInMillis();
             int minutes=(int)difference/(60*1000);
@@ -296,9 +263,9 @@ public class SimpleRoute {
             if(taskDatas.isEmpty())
                 break;
             for (Task task:taskDatas) {
-                Calendar TaskStartLine=Calendar.getInstance();
+                Calendar TaskStartLine;
                 TaskStartLine=task.ChangeStringToCalendar(task.startLine);
-                Calendar TaskDeadLine=Calendar.getInstance();
+                Calendar TaskDeadLine;
                 TaskDeadLine=task.ChangeStringToCalendar(task.deadLine);
                 //基本约束条件分析
                 if(TimeLimits(TaskStartLine,TaskDeadLine,StartLine)){
@@ -357,9 +324,9 @@ public class SimpleRoute {
         int time=0;
         for (int i=0;i<todoList.size()-1;i++) {
             //初稿，仅作演示
-            Calendar StartLine=Calendar.getInstance();
+            Calendar StartLine;
             StartLine=todoList.get(i).ChangeStringToCalendar(todoList.get(i).deadLine);
-            Calendar DeadLine=Calendar.getInstance();
+            Calendar DeadLine;
             DeadLine=todoList.get(i).ChangeStringToCalendar(todoList.get(i+1).startLine);
             long difference=DeadLine.getTimeInMillis()-StartLine.getTimeInMillis();
             int minutes=(int)difference/(60*1000);
@@ -369,5 +336,24 @@ public class SimpleRoute {
         time-=960;
         System.out.println("The total free time is "+time+",the percent is "+(float)time*100/2880+"%.");
 
+    }
+    public void WindowInitilize(Calendar start,Calendar end){
+        //initilize the start time
+        start.set(Calendar.MONTH,3);
+        start.set(Calendar.DATE,12);
+        start.set(Calendar.HOUR_OF_DAY,0);
+        start.set(Calendar.MINUTE,0);
+        start.set(Calendar.SECOND,0);
+        //initilize the end time
+        end.set(Calendar.MONTH,3);
+        end.set(Calendar.DATE,15);
+        end.set(Calendar.HOUR_OF_DAY,0);
+        end.set(Calendar.MINUTE,0);
+        end.set(Calendar.SECOND,0);
+    }
+    public void ChangeTheWindowByStep(Calendar start,Calendar end,int step){
+        //步长暂时以天为单位
+        start.add(Calendar.DATE,step);
+        end.add(Calendar.DATE,step);
     }
 }
