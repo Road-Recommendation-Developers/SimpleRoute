@@ -38,6 +38,7 @@ public class SimpleRoute {
             //插入待办事务
             List<Task> tmpTask = new ArrayList<>(taskDatas);
             InsertTaskIntoTodoList(freeTimeTable,tmpTask,todoList);
+            //初步假定步长为1天，其作用在于应对数据的实时变化与待办事务的动态更新
             ChangeTheWindowByStep(start,end,1);
 
             try {
@@ -65,8 +66,10 @@ public class SimpleRoute {
             //质量工程，效果评估
             EstimateTheEffect(todoList);
             //writeFile(todoList);
+
             System.out.println();
         }
+
         return todoList;
     }
 
@@ -269,6 +272,7 @@ public class SimpleRoute {
                 //基本约束条件分析
                 if(TimeLimits(TaskStartLine,TaskDeadLine,StartLine)){
                     //仅作演示用，时间允许的情况下
+                    //考虑到距离因素，存在一对多的关系
                     if(minutes>=task.executeTime){
                         //InsertTaskToFreeTimetable，有待具体实现
                         //具体事务的开展时间、结束时间更新
@@ -321,6 +325,7 @@ public class SimpleRoute {
     }
     public void EstimateTheEffect(List<Route> todoList) throws ParseException {
         int time=0;
+        double distance=0;
         for (int i=0;i<todoList.size()-1;i++) {
             //初稿，仅作演示
             Calendar StartLine;
@@ -330,10 +335,12 @@ public class SimpleRoute {
             long difference=DeadLine.getTimeInMillis()-StartLine.getTimeInMillis();
             int minutes=(int)difference/(60*1000);
             time+=minutes;
+
+            distance+=GetDistance(todoList.get(i),todoList.get(i+1));
         }
         //跨天情况模拟,23:00-7:00
         time-=960;
-        System.out.println("The total free time is "+time+",the percent is "+(float)time*100/2880+"%.");
+        System.out.println("The total free time is "+time+",the percent is "+(float)time*100/2880+"%,"+"the total distance is "+distance);
 
     }
     public void WindowInitilize(Calendar start,Calendar end){
@@ -354,5 +361,20 @@ public class SimpleRoute {
         //步长暂时以天为单位
         start.add(Calendar.DATE,step);
         end.add(Calendar.DATE,step);
+    }
+
+    private double GetDistance(Route r1, Route r2) {
+        double PI = 3.1415926D;
+        double Earth_Radius = 6371.004D;
+        double radLat1 = Double.parseDouble(r1.getEndLat())* PI / 180.0D;
+        double radLat2 = Double.parseDouble(r2.getEndLat()) * PI / 180.0D;
+        double a = radLat1 - radLat2;
+        double b = Double.parseDouble(r1.getEndLog()) * PI / 180.0D - Double.parseDouble(r2.getEndLog())* PI / 180.0D;
+        //double s = 2.0D * Math.asin(Math.sqrt(Math.pow(Math.sin(a / 2.0D), 2.0D) + Math.cos(radLat1) * Math.cos(radLat2) * Math.pow(Math.sin(b / 2.0D), 2.0D)));
+        double s = Math.acos(Math.sin(radLat1)*Math.sin(radLat2)+Math.cos(radLat1) * Math.cos(radLat2)*Math.cos(b));
+        s *= Earth_Radius;
+        s *= 1000.0D;
+        //D = arc cos((sin北纬A×sin北纬B)＋(cos北纬A×cos北纬B×cosAB两地经度差))×地球平均半径 (Shormin) 其中地球平均半径为6371.004 km，D的单位为km
+        return s;
     }
 }
