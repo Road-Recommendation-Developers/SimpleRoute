@@ -223,16 +223,19 @@ public class SimpleRoute {
                 DeadLineday.set(Calendar.SECOND,0);
                 tmp.setDeadLine(DeadLineday.getTime().toString());
                 freeTimeTable.add(tmp);
+
                 //考虑第二天的待办事务的起始时间不是7：00
                 if(StartLineday.get(Calendar.HOUR_OF_DAY)>=7){
                     DeadLineday.set(Calendar.DATE,StartLineday.get(Calendar.DATE));
                     DeadLineday.set(Calendar.HOUR_OF_DAY,7);
                     DeadLineday.set(Calendar.MINUTE,0);
                     DeadLineday.set(Calendar.SECOND,0);
+
                     if(DeadLineday.compareTo(StartLineday)<0) {
-                        tmp.setStartLine(DeadLineday.getTime().toString());
-                        tmp.setDeadLine(StartLineday.getTime().toString());
-                        freeTimeTable.add(tmp);
+                        Route tmp2=new  Route();
+                        tmp2.setStartLine(DeadLineday.getTime().toString());
+                        tmp2.setDeadLine(StartLineday.getTime().toString());
+                        freeTimeTable.add(tmp2);
                     }
                 }
             }
@@ -242,8 +245,6 @@ public class SimpleRoute {
                 freeTimeTable.add(tmp);
             }
             //待补充
-
-
         }
         return freeTimeTable;
     }
@@ -254,7 +255,10 @@ public class SimpleRoute {
         //1，从空闲时间序列中找到满足要求的时间段
         //2，进行约束条件的分析,见 LimitCondition函数
         //3，更新空闲时间序列和待办事务时间序列,见InsertTaskToFreeTimetable函数
+        //改进：加入距离因素，进一步分析相应的解的情况
+        List<Task> tmpTask=new ArrayList<>();
         for(int i=0;i<freeTimeTable.size();){
+            tmpTask.clear();
             Calendar StartLine;
             StartLine=freeTimeTable.get(i).ChangeStringToCalendar(freeTimeTable.get(i).startLine);
             Calendar DeadLine;
@@ -272,38 +276,52 @@ public class SimpleRoute {
                 //基本约束条件分析
                 if(TimeLimits(TaskStartLine,TaskDeadLine,StartLine)){
                     //仅作演示用，时间允许的情况下
-                    //考虑到距离因素，存在一对多的关系
+                    //考虑到距离因素，存在一对多的关系，先用集合存储，再找到局部最优解
                     if(minutes>=task.executeTime){
                         //InsertTaskToFreeTimetable，有待具体实现
                         //具体事务的开展时间、结束时间更新
-                        task.startLine=StartLine.getTime().toString();
-                        //执行时间小于空闲时间间隔的情况，需对空闲时间序列进行数据更新
-                        if(minutes>task.executeTime){
-                            StartLine.add(Calendar.MINUTE,task.executeTime);
-                            task.deadLine=StartLine.getTime().toString();
-                            //空闲时间拆分，移除已占用的时间段，插入更新的时间段
-                            Route tmp=new Route();
-                            tmp.startLine=task.deadLine;
-                            tmp.deadLine=DeadLine.getTime().toString();
-                            freeTimeTable.remove(freeTimeTable.get(i));
-                            freeTimeTable.add(i,tmp);
-                        }
-                        //执行时间恰好等于空闲时间间隔的情况
-                        else{
-                            task.deadLine=DeadLine.getTime().toString();
-                            freeTimeTable.remove(freeTimeTable.get(i));
-                        }
-                        todoList.add(task);
-                        taskDatas.remove(task);
-                        break;
+                        tmpTask.add(task);
                     }
                 }
-                //遍历待办事务序列后，未找到可用的空闲时间段，则下标i自加1
-                if(task==taskDatas.get(taskDatas.size()-1)){
+                if(task==taskDatas.get(taskDatas.size()-1)&&tmpTask.isEmpty()){
                     i++;
                     break;
                 }
             }
+            //遍历待办事务序列后，未找到可用的空闲时间段，则下标i自加1
+
+            double distance=0;
+            for (int k=0;k<tmpTask.size();k++) {
+                //综合评估：距离+时间，对应给分
+                //策略问题，以FIFO作为示例
+                Calendar tmpStartLine;
+                tmpStartLine=todoList.get(i).ChangeStringToCalendar(todoList.get(i).deadLine);
+                Calendar tmpDeadLine;
+                tmpDeadLine=todoList.get(i).ChangeStringToCalendar(todoList.get(i+1).startLine);
+                distance=GetDistance(todoList.get(i),todoList.get(i+1));
+
+                tmpTask.get(k).startLine=StartLine.getTime().toString();
+                //执行时间小于空闲时间间隔的情况，需对空闲时间序列进行数据更新
+                if(minutes>tmpTask.get(k).executeTime){
+                    StartLine.add(Calendar.MINUTE,tmpTask.get(k).executeTime);
+                    tmpTask.get(k).deadLine=StartLine.getTime().toString();
+                    //空闲时间拆分，移除已占用的时间段，插入更新的时间段
+                    Route tmp=new Route();
+                    tmp.startLine=tmpTask.get(k).deadLine;
+                    tmp.deadLine=DeadLine.getTime().toString();
+                    freeTimeTable.remove(freeTimeTable.get(i));
+                    freeTimeTable.add(i,tmp);
+                }
+                //执行时间恰好等于空闲时间间隔的情况
+                else{
+                    tmpTask.get(k).deadLine=DeadLine.getTime().toString();
+                    freeTimeTable.remove(freeTimeTable.get(i));
+                }
+                todoList.add(tmpTask.get(k));
+                taskDatas.remove(tmpTask.get(k));
+                break;
+            }
+
         }
     }
     public boolean TimeLimits(Calendar TaskStartLine,Calendar TaskDeadLine,Calendar StartLine){
