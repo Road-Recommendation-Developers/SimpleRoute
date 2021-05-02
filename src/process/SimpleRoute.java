@@ -36,7 +36,13 @@ public class SimpleRoute {
             }
             List<Route> freeTimeTable=GetTheFreeTimeTable(todoList);
             //插入待办事务
-            List<Task> tmpTask = new ArrayList<>(taskDatas);
+            List<Task> tmpTask = new ArrayList<Task>();
+            for (int i = 0; i < taskDatas.size(); i++) {
+                Route tmp= (Route) taskDatas.get(i).clone();
+                tmpTask.add((Task) tmp);
+            }
+            //tmpTask= (List<Task>) taskDatas.clone();
+            //System.arraycopy(taskDatas,0,taskDatas,0,taskDatas.size());
             InsertTaskIntoTodoList(freeTimeTable,tmpTask,todoList);
             //初步假定步长为1天，其作用在于应对数据的实时变化与待办事务的动态更新
             ChangeTheWindowByStep(start,end,1);

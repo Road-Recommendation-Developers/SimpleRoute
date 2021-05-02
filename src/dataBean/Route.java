@@ -6,7 +6,7 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
 
-public class Route {
+public class Route implements Cloneable{
     public String startPoint;
     public String startLat;
     public String startLog;
@@ -65,7 +65,18 @@ public class Route {
         //String tmp=time.getTime().toString();
         return time;
     }
-    
+
+    //允许进行数据的克隆，便于通过数据拷贝实现不同的功能
+    @Override
+    public Object clone() {
+        Route route = null;
+        try{
+            route = (Route) super.clone();
+        }catch(CloneNotSupportedException e) {
+            e.printStackTrace();
+        }
+        return route;
+    }
     public String getStartPoint() {
         return startPoint;
     }
