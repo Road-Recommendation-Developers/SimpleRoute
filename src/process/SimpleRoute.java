@@ -20,7 +20,7 @@ public class SimpleRoute {
         WindowInitilize(start,end);
         //System.out.println(start.getTime().toString()+end.getTime().toString());
         //输出4.12-4.16这个时间段的课程情况与待办事务安排情况，窗口为3
-        while (start.get(Calendar.DATE)<=14){
+        while (start.get(Calendar.DATE)<=16){
             //内存释放
             todoList.clear();
             System.out.println("The course between Apr "+start.get(Calendar.DATE)+" and Apr "+end.get(Calendar.DATE)+" is:");
@@ -30,8 +30,9 @@ public class SimpleRoute {
                 //设置窗口大小为3
                 if (tmp.after(start)&& tmp.before(end)) {
                     //在窗口内，则存储进去
+                    r.setPicked(true);
                     todoList.add(r);
-                    System.out.println(r);
+                    //System.out.println(r);
                 }
             }
             List<Route> freeTimeTable=GetTheFreeTimeTable(todoList);
@@ -44,8 +45,19 @@ public class SimpleRoute {
             //tmpTask= (List<Task>) taskDatas.clone();
             //System.arraycopy(taskDatas,0,taskDatas,0,taskDatas.size());
             InsertTaskIntoTodoList(freeTimeTable,tmpTask,todoList);
-            //初步假定步长为1天，其作用在于应对数据的实时变化与待办事务的动态更新
-            ChangeTheWindowByStep(start,end,1);
+            int count=0;
+            for (int i = 0; i < taskDatas.size(); i++) {
+                Calendar taskCalendar=null;
+                //将当天已经规划好的，排除在第二天的规划范围中；
+                taskCalendar=tmpTask.get(i).ChangeStringToCalendar(tmpTask.get(i).getStartLine());
+                if(taskCalendar.get(Calendar.DATE)==start.get(Calendar.DATE)&&tmpTask.get(i).isPicked()){
+                   taskDatas.get(i).setPicked(true);
+                   taskDatas.get(i).setStartLine(tmpTask.get(i).startLine);
+                   taskDatas.get(i).setDeadLine(tmpTask.get(i).deadLine);
+                   count++;
+                };
+            }
+            System.out.println("In "+start.getTime().toString()+",going to finish "+count+" tasks");
 
             try {
                 Thread.sleep(500);
@@ -72,11 +84,29 @@ public class SimpleRoute {
             //质量工程，效果评估
             EstimateTheEffect(todoList);
             //writeFile(todoList);
-
+            //初步假定步长为1天，其作用在于应对数据的实时变化与待办事务的动态更新
+            ChangeTheWindowByStep(start,end,1);
             System.out.println();
         }
-
         return todoList;
+    }
+    public void EstimateTheEffect(List<Route> todoList) throws ParseException {
+        int time=0;
+        double distance=0;
+        //任务完成情况
+        int count=0;
+        for (int i=0;i<todoList.size()-1;i++) {
+            //初稿，仅作演示
+            time+=todoList.get(i).getExecuteTime();
+            //尽可能涉及变量少些，此处有待改进
+            distance+=GetDistance(todoList.get(i),todoList.get(i+1));
+            if(todoList.get(i).isPicked())
+                count++;
+        }
+        time+=todoList.get(todoList.size()-1).getExecuteTime();
+        //time-=960;
+        System.out.println("The total busy time is "+time+",the percent is "+(float)time*100/2880+"%,"+"the total distance is "+distance+",finished "+count+" tasks");
+
     }
 
     public void FormateTheInfos(List<Route> routeDatas){
@@ -154,6 +184,7 @@ public class SimpleRoute {
         String startLat,startLog,endLat,endLog;
         String type;
         int executeTime;
+        boolean isPicked;
         for (Route routeData : routeDatas) {
             startPoint = routeData.getStartPoint();
             startLat = routeData.getStartLat();
@@ -165,7 +196,9 @@ public class SimpleRoute {
             executeTime = routeData.getExecuteTime();
             deadLine = routeData.getDeadLine();
             type = routeData.getType();
-            System.out.println("The route is from " + startPoint + " to " + endPoint + ",the start point location is:" + startLat + "," + startLog + ",the end point location is:" + endLat + "," + endLog + ",the start line is " + startLine + ",the dead line is " + deadLine + ",the execute time is " + executeTime + ",the type is " + type);
+            isPicked=routeData.isPicked();
+            System.out.println("The route is from " + startPoint + " to " + endPoint + ",start point location:" + startLat + "," + startLog + ",destination location:" + endLat + "," + endLog +
+                    ",the start line:" + startLine + ",the deadline:" + deadLine + ",the execute time:" + executeTime + ",the type:" + type+",is picked? "+isPicked);
 
         }
     }
@@ -216,39 +249,70 @@ public class SimpleRoute {
         for(int i=0;i<todoList.size()-1;i++){
             Route tmp=new Route();
             tmp.type="free";
-            Calendar DeadLineday;
-            DeadLineday=tmp.ChangeStringToCalendar(todoList.get(i).getDeadLine());
-            Calendar StartLineday;
-            StartLineday=tmp.ChangeStringToCalendar(todoList.get(i+1).getStartLine());
-            if(DeadLineday.get(Calendar.DATE)<StartLineday.get(Calendar.DATE)){
+            Calendar FrontDeadLineday;
+            FrontDeadLineday=tmp.ChangeStringToCalendar(todoList.get(i).getDeadLine());
+            Calendar LaterStartLineday;
+            LaterStartLineday=tmp.ChangeStringToCalendar(todoList.get(i+1).getStartLine());
+            if(i==0){
+                Calendar calendar = Calendar.getInstance();
+                calendar.set(Calendar.MONTH,FrontDeadLineday.get(Calendar.MONTH));
+                calendar.set(Calendar.DATE,FrontDeadLineday.get(Calendar.DATE));
+                calendar.set(Calendar.HOUR_OF_DAY,7);
+                calendar.set(Calendar.MINUTE,0);
+                calendar.set(Calendar.SECOND,0);
+                Calendar FrontStartLineday;
+                FrontStartLineday=tmp.ChangeStringToCalendar(todoList.get(i).getStartLine());
+                Route tmp2=new  Route();
+                tmp2.type="free";
+                tmp2.setStartLine(calendar.getTime().toString());
+                tmp2.setDeadLine(FrontStartLineday.getTime().toString());
+                freeTimeTable.add(tmp2);
+            }
+
+            if(FrontDeadLineday.get(Calendar.DATE)<LaterStartLineday.get(Calendar.DATE)){
                 //即为不同的两天，应考虑约束条件；
                 //约束条件2，23:00-7:00之间不能安排事务；
-                tmp.setStartLine(DeadLineday.getTime().toString());
-                DeadLineday.set(Calendar.HOUR_OF_DAY,23);
-                DeadLineday.set(Calendar.MINUTE,0);
-                DeadLineday.set(Calendar.SECOND,0);
-                tmp.setDeadLine(DeadLineday.getTime().toString());
+                tmp.setStartLine(FrontDeadLineday.getTime().toString());
+                FrontDeadLineday.set(Calendar.HOUR_OF_DAY,23);
+                FrontDeadLineday.set(Calendar.MINUTE,0);
+                FrontDeadLineday.set(Calendar.SECOND,0);
+                tmp.setDeadLine(FrontDeadLineday.getTime().toString());
                 freeTimeTable.add(tmp);
 
                 //考虑第二天的待办事务的起始时间不是7：00
-                if(StartLineday.get(Calendar.HOUR_OF_DAY)>=7){
-                    DeadLineday.set(Calendar.DATE,StartLineday.get(Calendar.DATE));
-                    DeadLineday.set(Calendar.HOUR_OF_DAY,7);
-                    DeadLineday.set(Calendar.MINUTE,0);
-                    DeadLineday.set(Calendar.SECOND,0);
+                if(LaterStartLineday.get(Calendar.HOUR_OF_DAY)>=7){
+                    FrontDeadLineday.set(Calendar.DATE,LaterStartLineday.get(Calendar.DATE));
+                    FrontDeadLineday.set(Calendar.HOUR_OF_DAY,7);
+                    FrontDeadLineday.set(Calendar.MINUTE,0);
+                    FrontDeadLineday.set(Calendar.SECOND,0);
 
-                    if(DeadLineday.compareTo(StartLineday)<0) {
+                    if(FrontDeadLineday.compareTo(LaterStartLineday)<0) {
                         Route tmp2=new  Route();
-                        tmp2.setStartLine(DeadLineday.getTime().toString());
-                        tmp2.setDeadLine(StartLineday.getTime().toString());
+                        tmp2.type="free";
+                        tmp2.setStartLine(FrontDeadLineday.getTime().toString());
+                        tmp2.setDeadLine(LaterStartLineday.getTime().toString());
                         freeTimeTable.add(tmp2);
                     }
                 }
             }
             else{
-                tmp.setStartLine(DeadLineday.getTime().toString());
-                tmp.setDeadLine(StartLineday.getTime().toString());
+                tmp.setStartLine(FrontDeadLineday.getTime().toString());
+                tmp.setDeadLine(LaterStartLineday.getTime().toString());
                 freeTimeTable.add(tmp);
+            }
+
+            if(i==todoList.size()-2){
+                Calendar calendar=Calendar.getInstance();
+                calendar.set(Calendar.MONTH,LaterStartLineday.get(Calendar.MONTH));
+                calendar.set(Calendar.DATE,LaterStartLineday.get(Calendar.DATE));
+                calendar.set(Calendar.HOUR_OF_DAY,23);
+                calendar.set(Calendar.MINUTE,0);
+                calendar.set(Calendar.SECOND,0);
+                Route tmp2=new  Route();
+                tmp2.type="free";
+                tmp2.setStartLine(LaterStartLineday.getTime().toString());
+                tmp2.setDeadLine(calendar.getTime().toString());
+                freeTimeTable.add(tmp2);
             }
             //待补充
         }
@@ -281,9 +345,10 @@ public class SimpleRoute {
                 TaskDeadLine=task.ChangeStringToCalendar(task.deadLine);
                 //基本约束条件分析
                 if(TimeLimits(TaskStartLine,TaskDeadLine,StartLine)){
-                    //仅作演示用，时间允许的情况下
-                    //考虑到距离因素，存在一对多的关系，先用集合存储，再找到局部最优解
-                    if(minutes>=task.executeTime){
+                    //阶段1：仅作演示用，时间允许的情况下
+                    //阶段2：考虑到距离因素，存在一对多的关系，先用集合存储，再找到局部最优解
+                    //动态规划，剔除已经安排好的部分
+                    if(minutes>=task.executeTime&& !task.isPicked()){
                         //InsertTaskToFreeTimetable，有待具体实现
                         //具体事务的开展时间、结束时间更新
                         tmpTask.add(task);
@@ -297,6 +362,8 @@ public class SimpleRoute {
             //遍历待办事务序列后，未找到可用的空闲时间段，则下标i自加1
 
             double distance=0;
+            //最优匹配策略，时间最小
+            //tmpTask.sort(Comparator.comparing(Task::getExecuteTime));
             for (int k=0;k<tmpTask.size();k++) {
                 //综合评估：距离+时间，对应给分
                 //策略问题，以FIFO作为示例
@@ -304,7 +371,8 @@ public class SimpleRoute {
                 tmpStartLine=todoList.get(i).ChangeStringToCalendar(todoList.get(i).deadLine);
                 Calendar tmpDeadLine;
                 tmpDeadLine=todoList.get(i).ChangeStringToCalendar(todoList.get(i+1).startLine);
-                distance=GetDistance(todoList.get(i),todoList.get(i+1));
+                //计算二者之间的距离
+                distance=GetDistance(todoList.get(i),tmpTask.get(k));
 
                 tmpTask.get(k).startLine=StartLine.getTime().toString();
                 //执行时间小于空闲时间间隔的情况，需对空闲时间序列进行数据更新
@@ -315,6 +383,7 @@ public class SimpleRoute {
                     Route tmp=new Route();
                     tmp.startLine=tmpTask.get(k).deadLine;
                     tmp.deadLine=DeadLine.getTime().toString();
+                    //tmp.setStartPoint();
                     freeTimeTable.remove(freeTimeTable.get(i));
                     freeTimeTable.add(i,tmp);
                 }
@@ -323,8 +392,9 @@ public class SimpleRoute {
                     tmpTask.get(k).deadLine=DeadLine.getTime().toString();
                     freeTimeTable.remove(freeTimeTable.get(i));
                 }
+                tmpTask.get(k).setPicked(true);
                 todoList.add(tmpTask.get(k));
-                taskDatas.remove(tmpTask.get(k));
+                //taskDatas.remove(tmpTask.get(k));
                 break;
             }
 
@@ -347,26 +417,7 @@ public class SimpleRoute {
     public void InsertTaskToFreeTimetable(){
         //相应的策略，核心功能分析与实现
     }
-    public void EstimateTheEffect(List<Route> todoList) throws ParseException {
-        int time=0;
-        double distance=0;
-        for (int i=0;i<todoList.size()-1;i++) {
-            //初稿，仅作演示
-            Calendar StartLine;
-            StartLine=todoList.get(i).ChangeStringToCalendar(todoList.get(i).deadLine);
-            Calendar DeadLine;
-            DeadLine=todoList.get(i).ChangeStringToCalendar(todoList.get(i+1).startLine);
-            long difference=DeadLine.getTimeInMillis()-StartLine.getTimeInMillis();
-            int minutes=(int)difference/(60*1000);
-            time+=minutes;
 
-            distance+=GetDistance(todoList.get(i),todoList.get(i+1));
-        }
-        //跨天情况模拟,23:00-7:00
-        time-=960;
-        System.out.println("The total free time is "+time+",the percent is "+(float)time*100/2880+"%,"+"the total distance is "+distance);
-
-    }
     public void WindowInitilize(Calendar start,Calendar end){
         //initilize the start time
         start.set(Calendar.MONTH,3);
