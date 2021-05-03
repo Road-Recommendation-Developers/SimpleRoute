@@ -19,6 +19,7 @@ public class Route implements Cloneable{
     public String type;
     public String introduction;
     public boolean isPicked;
+    public double score;
     public Route(){
 
     }
@@ -136,4 +137,7 @@ public class Route implements Cloneable{
 
     public void setPicked(boolean picked) { isPicked = picked; }
 
+    public double getScore() { return score; }
+
+    public void setScore(double score) { this.score = score; }
 }
