@@ -55,7 +55,7 @@ public class SimpleRoute {
                    taskDatas.get(i).setStartLine(tmpTask.get(i).startLine);
                    taskDatas.get(i).setDeadLine(tmpTask.get(i).deadLine);
                    count++;
-                };
+                }
             }
             System.out.println("In "+start.getTime().toString()+",going to finish "+count+" tasks");
 
@@ -105,7 +105,7 @@ public class SimpleRoute {
         }
         time+=todoList.get(todoList.size()-1).getExecuteTime();
         //time-=960;
-        System.out.println("The total busy time is "+time+",the percent is "+(float)time*100/2880+"%,"+"the total distance is "+distance+",finished "+count+" tasks");
+        System.out.println("The total busy time is "+time+",the percent is "+(float)time*100/2880+"%,"+"the total distance is "+distance+",Picked "+count+" tasks");
 
     }
 
@@ -266,6 +266,10 @@ public class SimpleRoute {
                 tmp2.type="free";
                 tmp2.setStartLine(calendar.getTime().toString());
                 tmp2.setDeadLine(FrontStartLineday.getTime().toString());
+                //起点信息初始化，默认为宿舍所在地：七区,112.911016,27.912553
+                tmp2.setEndPoint("七区");
+                tmp2.setEndLat("112.911016");
+                tmp2.setEndLog("27.912553");
                 freeTimeTable.add(tmp2);
             }
 
@@ -276,6 +280,11 @@ public class SimpleRoute {
                 FrontDeadLineday.set(Calendar.HOUR_OF_DAY,23);
                 FrontDeadLineday.set(Calendar.MINUTE,0);
                 FrontDeadLineday.set(Calendar.SECOND,0);
+                //空闲时间起点信息更新，默认为上一次课程所在地
+                tmp.setEndPoint(todoList.get(i).getEndPoint());
+                tmp.setEndLat(todoList.get(i).getEndLat());
+                tmp.setEndLog(todoList.get(i).getEndLog());
+                freeTimeTable.add(tmp);
                 tmp.setDeadLine(FrontDeadLineday.getTime().toString());
                 freeTimeTable.add(tmp);
 
@@ -287,15 +296,22 @@ public class SimpleRoute {
                     FrontDeadLineday.set(Calendar.SECOND,0);
 
                     if(FrontDeadLineday.compareTo(LaterStartLineday)<0) {
-                        Route tmp2=new  Route();
-                        tmp2.type="free";
-                        tmp2.setStartLine(FrontDeadLineday.getTime().toString());
-                        tmp2.setDeadLine(LaterStartLineday.getTime().toString());
-                        freeTimeTable.add(tmp2);
+                        Route tmp3=new  Route();
+                        tmp3.type="free";
+                        tmp3.setStartLine(FrontDeadLineday.getTime().toString());
+                        tmp3.setDeadLine(LaterStartLineday.getTime().toString());
+                        tmp3.setEndPoint("七区");
+                        tmp3.setEndLat("112.911016");
+                        tmp3.setEndLog("27.912553");
+                        freeTimeTable.add(tmp3);
                     }
                 }
             }
             else{
+                //空闲时间起点信息更新，默认为上一次课程所在地
+                tmp.setEndPoint(todoList.get(i).getEndPoint());
+                tmp.setEndLat(todoList.get(i).getEndLat());
+                tmp.setEndLog(todoList.get(i).getEndLog());
                 tmp.setStartLine(FrontDeadLineday.getTime().toString());
                 tmp.setDeadLine(LaterStartLineday.getTime().toString());
                 freeTimeTable.add(tmp);
@@ -308,11 +324,15 @@ public class SimpleRoute {
                 calendar.set(Calendar.HOUR_OF_DAY,23);
                 calendar.set(Calendar.MINUTE,0);
                 calendar.set(Calendar.SECOND,0);
-                Route tmp2=new  Route();
-                tmp2.type="free";
-                tmp2.setStartLine(LaterStartLineday.getTime().toString());
-                tmp2.setDeadLine(calendar.getTime().toString());
-                freeTimeTable.add(tmp2);
+                Route tmp4=new  Route();
+                tmp4.type="free";
+                tmp4.setStartLine(LaterStartLineday.getTime().toString());
+                tmp4.setDeadLine(calendar.getTime().toString());
+                //终点信息更新,地理信息
+                tmp4.setEndPoint(todoList.get(i+1).getEndPoint());
+                tmp4.setEndLat(todoList.get(i+1).getEndLat());
+                tmp4.setEndLog(todoList.get(i+1).getEndLog());
+                freeTimeTable.add(tmp4);
             }
             //待补充
         }
@@ -354,16 +374,58 @@ public class SimpleRoute {
                         tmpTask.add(task);
                     }
                 }
+                //遍历待办事务序列后，未找到可用的空闲时间段，则下标i自加1
                 if(task==taskDatas.get(taskDatas.size()-1)&&tmpTask.isEmpty()){
                     i++;
                     break;
                 }
             }
-            //遍历待办事务序列后，未找到可用的空闲时间段，则下标i自加1
+            if(tmpTask.isEmpty())
+                break;
+            //策略比较
+            //1,FIFO/First Meet
+            //2,Best/time cost minimize
+            //3,Judge on time and distance
 
             double distance=0;
             //最优匹配策略，时间最小
-            //tmpTask.sort(Comparator.comparing(Task::getExecuteTime));
+            //
+
+            //Task tobeChoose=FIFO(tmpTask);
+            //Task tobeChoose=Best(tmpTask);
+            //Task tobeChoose=Wrost(tmpTask);
+            Task tobeChoose=JudgeByDistance(tmpTask,freeTimeTable,i);
+            //Task tobeChoose=JudgeByTimeAndDistance(tmpTask,freeTimeTable,i);
+            tobeChoose.startLine=StartLine.getTime().toString();
+            //执行时间小于空闲时间间隔的情况，需对空闲时间序列进行数据更新
+            if(minutes>tobeChoose.executeTime){
+                StartLine.add(Calendar.MINUTE,tobeChoose.executeTime);
+                tobeChoose.deadLine=StartLine.getTime().toString();
+                //空闲时间拆分，移除已占用的时间段，插入更新的时间段
+                Route tmp=new Route();
+                tmp.startLine=tobeChoose.deadLine;
+                tmp.deadLine=DeadLine.getTime().toString();
+                //空闲时间起点信息更新，默认为上一次事务所在地
+
+                //tmp.setEndLat(todoList.get(i).getEndLat());
+                //tmp.setEndLog(todoList.get(i).getEndLog());
+                //tmp.setStartPoint();
+                freeTimeTable.remove(freeTimeTable.get(i));
+                tmp.setEndPoint(tobeChoose.getEndPoint());
+                tmp.setEndLat(tobeChoose.getEndLat());
+                tmp.setEndLog(tobeChoose.getEndLog());
+                freeTimeTable.add(i,tmp);
+            }
+            //执行时间恰好等于空闲时间间隔的情况
+            else{
+                tobeChoose.deadLine=DeadLine.getTime().toString();
+                freeTimeTable.remove(freeTimeTable.get(i));
+            }
+            tobeChoose.setPicked(true);
+            todoList.add(tobeChoose);
+
+             /*
+
             for (int k=0;k<tmpTask.size();k++) {
                 //综合评估：距离+时间，对应给分
                 //策略问题，以FIFO作为示例
@@ -396,7 +458,11 @@ public class SimpleRoute {
                 todoList.add(tmpTask.get(k));
                 //taskDatas.remove(tmpTask.get(k));
                 break;
+
+
             }
+
+              */
 
         }
     }
@@ -451,5 +517,53 @@ public class SimpleRoute {
         s *= 1000.0D;
         //D = arc cos((sin北纬A×sin北纬B)＋(cos北纬A×cos北纬B×cosAB两地经度差))×地球平均半径 (Shormin) 其中地球平均半径为6371.004 km，D的单位为km
         return s;
+    }
+    private Task FIFO(List<Task> tmpTask){
+        int i=0;
+        return tmpTask.get(i);
+    }
+    private Task Best(List<Task> tmpTask){
+        tmpTask.sort(Comparator.comparing(Task::getExecuteTime));
+        int i=0;
+        return tmpTask.get(i);
+    }
+    private Task Wrost(List<Task> tmpTask){
+        tmpTask.sort(Comparator.comparing(Task::getExecuteTime));
+        int i=tmpTask.size()-1;
+        return tmpTask.get(i);
+    }
+
+    private Task JudgeByDistance(List<Task> tmpTask,List<Route> freeTimeTable,int i){
+        //tmpTask.sort(Comparator.comparing(Task::getExecuteTime));
+        Route front=freeTimeTable.get(i);
+        Route later=freeTimeTable.get(i+1);
+        for (Task t:tmpTask) {
+            double distance=0;
+
+            if(i<freeTimeTable.size()-1)
+                distance=GetDistance(front,t)+GetDistance(t,later);
+            else
+                distance=GetDistance(front,t);
+            t.score=distance;
+        }
+        tmpTask.sort(Comparator.comparing(Task::getScore));
+        return tmpTask.get(0);
+    }
+
+    private Task JudgeByTimeAndDistance(List<Task> tmpTask,List<Route> freeTimeTable,int i){
+        //tmpTask.sort(Comparator.comparing(Task::getExecuteTime));
+        Route front=freeTimeTable.get(i);
+        Route later=freeTimeTable.get(i+1);
+        for (Task t:tmpTask) {
+            double distance=0;
+            int time=t.executeTime;
+            if(i<freeTimeTable.size()-1)
+                distance=GetDistance(front,t)+GetDistance(t,later);
+            else
+                distance=GetDistance(front,t);
+            t.score=(double) time/100+distance/100;
+        }
+        tmpTask.sort(Comparator.comparing(Task::getScore));
+        return tmpTask.get(tmpTask.size()-1);
     }
 }
