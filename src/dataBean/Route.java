@@ -18,6 +18,7 @@ public class Route implements Cloneable{
     public int executeTime;
     public String type;
     public String introduction;
+    public boolean isPicked;
     public Route(){
 
     }
@@ -48,7 +49,9 @@ public class Route implements Cloneable{
                         startLine+"," +
                         deadLine+"," +
                         executeTime+"," +
-                        type;
+                        type+"," +
+                        introduction+"," +
+                        isPicked;
     }
 
     public Calendar ChangeStringToCalendar(String line) throws ParseException {
@@ -124,5 +127,13 @@ public class Route implements Cloneable{
     public String getType() { return type; }
 
     public void setType(String type) { this.type = type; }
+
+    public String getIntroduction() { return introduction; }
+
+    public void setIntroduction(String introduction) { this.introduction = introduction; }
+
+    public boolean isPicked() { return isPicked; }
+
+    public void setPicked(boolean picked) { isPicked = picked; }
 
 }
